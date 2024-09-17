@@ -10,3 +10,4 @@ class Client(Base):
     id = Column(Integer, primary_key=True, index=True)
     name = Column(VARCHAR, index=True)
     email = Column(VARCHAR, unique=True, index=True)
+    phone = Column(VARCHAR, unique=True, index=True)
