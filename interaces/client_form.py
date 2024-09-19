@@ -79,7 +79,7 @@ class ClientForm:
                 self.email_entry.insert(0, client.email)
                 self.phone_var.set(client.phone)
         except Exception as e:
-            messagebox.showerror("Error", f"An error occurred: {e}")
+            messagebox.showerror("Error", f"Ocorreu um erro: {e}")
         finally:
             session.close()
 
@@ -109,4 +109,4 @@ class ClientForm:
             self.main_app.refresh_tree()
         except Exception as e:
             print(e)
-            messagebox.showerror("Error", f"An error occurred: {e}")
+            messagebox.showerror("Error", f"Ocorreu um erro: {e}")

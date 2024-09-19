@@ -7,7 +7,7 @@ Base = declarative_base()
 class Client(Base):
     __tablename__ = "clients"
 
-    id = Column(Integer, primary_key=True, index=True)
-    name = Column(VARCHAR, index=True)
-    email = Column(VARCHAR, unique=True, index=True)
-    phone = Column(VARCHAR, unique=True, index=True)
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    name = Column(VARCHAR(256), nullable=False)
+    email = Column(VARCHAR(256), unique=True, nullable=False)
+    phone = Column(VARCHAR(14))

@@ -6,7 +6,6 @@ root = Tk()
 def main():
     app = MainWindow(root)
     root.mainloop()
-    enter_fullscreen()
 
 # Função para ajustar a janela para tela cheia
 def enter_fullscreen(event=None):
@@ -15,9 +14,10 @@ def enter_fullscreen(event=None):
 # Função para sair do modo tela cheia
 def exit_fullscreen(event=None):
     root.attributes('-fullscreen', False)
-    root.quit()
 
 root.bind("<Escape>", exit_fullscreen)
+
+root.bind("<F11>", enter_fullscreen)
 
 if __name__ == "__main__":
     main()

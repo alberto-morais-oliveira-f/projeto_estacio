@@ -17,12 +17,12 @@ class ClientService:
                     client.email = email
                     client.phone = phone
                     session.commit()
-                    messagebox.showinfo("Success", "Client updated successfully")
+                    messagebox.showinfo("Success", "Cliente atualizado com sucesso!")
             else:
                 new_client = Client(name=name, email=email, phone=phone)
                 session.add(new_client)
                 session.commit()
-                messagebox.showinfo("Success", "Client added successfully")
+                messagebox.showinfo("Success", "Cliente adicionado com sucesso!")
         except Exception as e:
             print(e)
             session.rollback()

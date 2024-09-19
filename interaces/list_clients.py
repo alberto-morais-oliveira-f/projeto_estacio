@@ -21,8 +21,7 @@ class ListClients:
         self.tree = None
         self.button_frame = None
         self.root = root
-        self.root.title("Client Management System")
-        self.root.attributes("-fullscreen", True)
+        self.root.title("Gestão de Clientes")
 
         self.trash_icon = load_icon("resources/images/4021663.png")
         self.edit_icon = load_icon("resources/images/edit_icon.png")  # Atualize o caminho para o ícone de edição
@@ -37,6 +36,12 @@ class ListClients:
         self.create_styles()
         self.create_widgets()
         self.refresh_tree()
+
+        # Ocupando o tamanho total da tela disponível
+        self.root.attributes('-zoomed', True)  # No Windows
+        self.root.geometry(
+            "{0}x{1}+0+0".format(self.root.winfo_screenwidth(), self.root.winfo_screenheight()))  # Em Linux
+        self.root.resizable(True, True)  # Permite redimensionar a janela
 
     def create_styles(self):
         style = ttk.Style(self.root)
@@ -60,11 +65,11 @@ class ListClients:
         return button_frame
 
     def create_add_client_button(self):
-        add_client_button = ttk.Button(self.button_frame, text="Add Client", command=self.open_client_form)
+        add_client_button = ttk.Button(self.button_frame, text="Adicionar Cliente", command=self.open_client_form)
         add_client_button.pack(side=tk.LEFT, padx=5)
 
     def create_filter_entry(self):
-        filter_label = ttk.Label(self.button_frame, text="Filter Clients:")
+        filter_label = ttk.Label(self.button_frame, text="Filtrar Clientes:")
         filter_label.pack(side=tk.RIGHT, padx=(0, 5))
 
         self.filter_entry = ttk.Entry(self.button_frame)
@@ -75,13 +80,13 @@ class ListClients:
         pagination_frame = ttk.Frame(self.root)
         pagination_frame.pack(padx=10, pady=10, side=tk.BOTTOM, fill=tk.X)
 
-        self.prev_button = ttk.Button(pagination_frame, text="Previous Page", command=self.prev_page)
+        self.prev_button = ttk.Button(pagination_frame, text="Voltar Página", command=self.prev_page)
         self.prev_button.pack(side=tk.LEFT, padx=5)
 
-        self.page_label = ttk.Label(pagination_frame, text=f"Page {self.current_page}")
+        self.page_label = ttk.Label(pagination_frame, text=f"Página {self.current_page}")
         self.page_label.pack(side=tk.LEFT, padx=5)
 
-        self.next_button = ttk.Button(pagination_frame, text="Next Page", command=self.next_page)
+        self.next_button = ttk.Button(pagination_frame, text="Próxima Página", command=self.next_page)
         self.next_button.pack(side=tk.LEFT, padx=5)
 
     def create_treeview(self):
@@ -137,10 +142,10 @@ class ListClients:
             # Atualizar o estado dos botões de paginação
             self.prev_button.config(state=tk.NORMAL if self.current_page > 1 else tk.DISABLED)
             self.next_button.config(state=tk.NORMAL if self.current_page < self.total_pages else tk.DISABLED)
-            self.page_label.config(text=f"Page {self.current_page} of {self.total_pages}")
+            self.page_label.config(text=f"Página {self.current_page} of {self.total_pages}")
 
         except Exception as e:
-            messagebox.showerror("Error", f"An error occurred: {e}")
+            messagebox.showerror("Error", f"Ocorreu um erro: {e}")
         finally:
             session.close()
 
@@ -182,7 +187,7 @@ class ListClients:
                 self.edit_client(item_id)
 
     def delete_client(self, item_id):
-        confirm = messagebox.askyesno("Confirm Deletion", "Are you sure you want to delete the selected client?")
+        confirm = messagebox.askyesno("Confirme que quer Deletar", "Tem certeza de que deseja excluir o cliente selecionado?")
         if confirm:
             selected_client_id = self.tree.item(item_id, 'values')[0]
             session = SessionLocal()
@@ -191,7 +196,7 @@ class ListClients:
                 if client_to_remove:
                     session.delete(client_to_remove)
                     session.commit()
-                    messagebox.showinfo("Success", "Client removed successfully")
+                    messagebox.showinfo("Success", "Cliente removido com sucesso")
 
                     self.tree.delete(item_id)
                     if item_id in self.trash_buttons:
@@ -201,10 +206,10 @@ class ListClients:
                         self.edit_buttons[item_id].destroy()
                         del self.edit_buttons[item_id]
                 else:
-                    messagebox.showerror("Error", "Client not found")
+                    messagebox.showerror("Error", "Cliente não encontrado")
             except Exception as e:
                 session.rollback()
-                messagebox.showerror("Error", f"An error occurred: {e}")
+                messagebox.showerror("Error", f"Ocorreu um erro: {e}")
             finally:
                 session.close()
             self.refresh_tree()
@@ -230,5 +235,5 @@ class ListClients:
 
 if __name__ == "__main__":
     root = tk.Tk()
-    app = MainWindow(root)
+    app = ListClients(root)
     root.mainloop()
