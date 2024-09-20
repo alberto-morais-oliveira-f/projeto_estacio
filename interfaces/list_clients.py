@@ -232,7 +232,7 @@ class ListClients:
 
     def edit_client(self, item_id):
         selected_client_id = self.tree.item(item_id, 'values')[0]
-        ClientForm(self.root, self, client_id=selected_client_id)
+        ClientForm(self.root, self, client_id=selected_client_id, title='Editar Cliente')
 
     def filter_clients(self, event):
         query = self.filter_entry.get()

@@ -8,7 +8,7 @@ from validations.validation_service import is_valid_email, is_valid_phone
 from utils.MaskPhone import MaskPhone
 
 class ClientForm:
-    def __init__(self, parent, main_app, client_id=None):
+    def __init__(self, parent, main_app, client_id=None, title = "Cadastrar Cliente"):
         self.submit_button = None
         self.phone_entry = None
         self.email_entry = None
@@ -18,7 +18,7 @@ class ClientForm:
         self.client_id = client_id
 
         self.window = Toplevel(parent)
-        self.window.title("Cadastrar Cliente")
+        self.window.title(title)
 
         self.phone_var = StringVar()
 
