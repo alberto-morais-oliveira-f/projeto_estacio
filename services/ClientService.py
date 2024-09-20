@@ -29,3 +29,21 @@ class ClientService:
             messagebox.showerror("Error", str(e))
         finally:
             session.close()
+
+    def delete(client_id):
+        session = SessionLocal()
+        try:
+            if client_id:
+                client = session.query(Client).filter(Client.id == client_id).first()
+                if client:
+                    session.delete(client)
+                    session.commit()
+                    return True
+            else:
+                return False
+        except Exception as e:
+            print(e)
+            session.rollback()
+            messagebox.showerror("Error", str(e))
+        finally:
+            session.close()

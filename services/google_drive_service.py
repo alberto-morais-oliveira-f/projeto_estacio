@@ -1,88 +1,66 @@
 import os
+from tkinter import filedialog, messagebox
+
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
-from googleapiclient.errors import HttpError
 from googleapiclient.http import MediaFileUpload
 
 SCOPES = ['https://www.googleapis.com/auth/drive']
 
 
 class GoogleDriveService:
-    def __init__(self, credentials_path='credentials.json', token_path='token.json'):
-        self.credentials_path = credentials_path
-        self.token_path = token_path
-        self.creds = None
-        self.service = self.initialize_drive_service()
 
-    def initialize_drive_service(self):
-        """
-        Inicializa o serviço Google Drive usando OAuth 2.0.
-        :return: A instância de serviço do Google Drive.
-        """
-        # Tenta carregar credenciais do token.json
-        if os.path.exists(self.token_path):
-            self.creds = Credentials.from_authorized_user_file(self.token_path, SCOPES)
-
-        # Se não há credenciais válidas, segue com o fluxo de autenticação
-        if not self.creds or not self.creds.valid:
-            if self.creds and self.creds.expired and self.creds.refresh_token:
-                self.creds.refresh(Request())
+    @staticmethod
+    def create_folder_and_upload_file(client_name, filepath):
+        """Cria uma pasta e faz o upload de um arquivo no Google Drive."""
+        creds = None
+        if os.path.exists('token.json'):
+            creds = Credentials.from_authorized_user_file('token.json', SCOPES)
+        if not creds or not creds.valid:
+            if creds and creds.expired and creds.refresh_token:
+                creds.refresh(Request())
             else:
-                flow = InstalledAppFlow.from_client_secrets_file(self.credentials_path, SCOPES)
-                self.creds = flow.run_local_server(port=0)
+                # Delete o arquivo token.json antes de rodar para resetar a autenticação
+                flow = InstalledAppFlow.from_client_secrets_file('credentials.json', SCOPES)
+                creds = flow.run_local_server(port=0)
+            with open('token.json', 'w') as token:
+                token.write(creds.to_json())
 
-            # Salva as credenciais para a próxima execução
-            with open(self.token_path, 'w') as token:
-                token.write(self.creds.to_json())
+        service = build('drive', 'v3', credentials=creds)
 
-        return build('drive', 'v3', credentials=self.creds)
+        # Verifica se a pasta já existe
+        query = f"name = '{client_name}' and mimeType = 'application/vnd.google-apps.folder' and trashed = false"
+        results = service.files().list(q=query, spaces='drive', fields='files(id, name)', pageSize=10).execute()
+        items = results.get('files', [])
 
-    def list_files(self, page_size=10):
-        """
-        Lista os arquivos no Google Drive.
-        :param page_size: O número de arquivos a listar.
-        :return: Uma lista de arquivos com nomes e IDs.
-        """
-        try:
-            results = self.service.files().list(
-                pageSize=page_size, fields="nextPageToken, files(id, name)").execute()
-            items = results.get('files', [])
+        if len(items) > 0:
+            # Usa a primeira pasta encontrada com o nome correspondente
+            folder_id = items[0]['id']
+        else:
+            # Cria uma pasta no Google Drive
+            folder_metadata = {
+                'name': client_name,
+                'mimeType': 'application/vnd.google-apps.folder'
+            }
+            folder = service.files().create(body=folder_metadata, fields='id').execute()
+            folder_id = folder.get('id')
 
-            if not items:
-                print('No files found.')
-                return []
-            else:
-                print('Files:')
-                for item in items:
-                    print(f"{item['name']} ({item['id']})")
-                return items
-        except HttpError as error:
-            print(f"An error occurred: {error}")
-            return None
-
-    def upload_file(self, file_name, file_path, mime_type):
-        """
-        Realiza o upload de um arquivo para o Google Drive.
-        :param file_name: Nome do arquivo a ser salvo no Google Drive.
-        :param file_path: Caminho do arquivo local.
-        :param mime_type: Tipo MIME do arquivo.
-        :return: O ID do arquivo carregado.
-        """
-        file_metadata = {'name': file_name}
-        media = MediaFileUpload(file_path, mimetype=mime_type)
-        file = self.service.files().create(body=file_metadata, media_body=media, fields='id').execute()
-        print(f'File ID: {file.get("id")}')
+        # Envia um arquivo para a pasta criada no Google Drive
+        file_metadata = {
+            'name': os.path.basename(filepath),
+            'parents': [folder_id]
+        }
+        media = MediaFileUpload(filepath, resumable=True)
+        file = service.files().create(body=file_metadata, media_body=media, fields='id').execute()
         return file.get('id')
 
-    def delete_file(self, file_id):
-        """
-        Remove um arquivo do Google Drive.
-        :param file_id: ID do arquivo a ser removido.
-        """
-        try:
-            self.service.files().delete(fileId=file_id).execute()
-            print(f'File {file_id} deleted successfully')
-        except HttpError as error:
-            print(f"An error occurred: {error}")
+    def select_and_upload_file(self, client_name):
+        initial_directory = "/home/alberto/Documentos"
+        filepath = filedialog.askopenfilename(initialdir=initial_directory)
+        if filepath:
+            file_id = self.create_folder_and_upload_file(client_name, filepath)
+            messagebox.showinfo("Success", f"Arquivo carregado com sucesso na pasta '{client_name}'! (ID: {file_id})")
+        else:
+            messagebox.showwarning("Atenção", "Nenhum arquivo selecionado")
