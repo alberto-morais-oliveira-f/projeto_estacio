@@ -1,4 +1,4 @@
-from interaces.main_window import MainWindow
+from interfaces.main_window import MainWindow
 from tkinter import Tk
 
 root = Tk()

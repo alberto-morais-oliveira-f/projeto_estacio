@@ -1,14 +1,78 @@
 import tkinter as tk
-from tkinter import ttk, messagebox
+from tkinter import ttk, messagebox, filedialog
 from utils.MaskPhone import format_phone
 from tkinter import PhotoImage
 from .client_form import ClientForm
 from services.database_service import SessionLocal
 from models.client import Client
 
+import os
+from google.auth.transport.requests import Request
+from google.oauth2.credentials import Credentials
+from google_auth_oauthlib.flow import InstalledAppFlow
+from googleapiclient.discovery import build
+from googleapiclient.http import MediaFileUpload
+
+# Atualize este escopo para incluir todas as permissões necessárias
+SCOPES = ['https://www.googleapis.com/auth/drive']
+
 
 def load_icon(file_path):
     return PhotoImage(file=file_path)
+
+
+def create_folder_and_upload_file(client_name, filepath):
+    """Cria uma pasta e faz o upload de um arquivo no Google Drive."""
+    creds = None
+    if os.path.exists('token.json'):
+        creds = Credentials.from_authorized_user_file('token.json', SCOPES)
+    if not creds or not creds.valid:
+        if creds and creds.expired and creds.refresh_token:
+            creds.refresh(Request())
+        else:
+            # Delete o arquivo token.json antes de rodar para resetar a autenticação
+            flow = InstalledAppFlow.from_client_secrets_file('credentials.json', SCOPES)
+            creds = flow.run_local_server(port=0)
+        with open('token.json', 'w') as token:
+            token.write(creds.to_json())
+
+    service = build('drive', 'v3', credentials=creds)
+
+    # Verifica se a pasta já existe
+    query = f"name = '{client_name}' and mimeType = 'application/vnd.google-apps.folder' and trashed = false"
+    results = service.files().list(q=query, spaces='drive', fields='files(id, name)', pageSize=10).execute()
+    items = results.get('files', [])
+
+    if len(items) > 0:
+        # Usa a primeira pasta encontrada com o nome correspondente
+        folder_id = items[0]['id']
+    else:
+        # Cria uma pasta no Google Drive
+        folder_metadata = {
+            'name': client_name,
+            'mimeType': 'application/vnd.google-apps.folder'
+        }
+        folder = service.files().create(body=folder_metadata, fields='id').execute()
+        folder_id = folder.get('id')
+
+    # Envia um arquivo para a pasta criada no Google Drive
+    file_metadata = {
+        'name': os.path.basename(filepath),
+        'parents': [folder_id]
+    }
+    media = MediaFileUpload(filepath, resumable=True)
+    file = service.files().create(body=file_metadata, media_body=media, fields='id').execute()
+    return file.get('id')
+
+
+def select_and_upload_file(client_name):
+    initial_directory = "/home/alberto/Documentos"
+    filepath = filedialog.askopenfilename(initialdir=initial_directory)
+    if filepath:
+        file_id = create_folder_and_upload_file(client_name, filepath)
+        messagebox.showinfo("Success", f"Arquivo carregado com sucesso na pasta '{client_name}'! (ID: {file_id})")
+    else:
+        messagebox.showwarning("Atenção", "Nenhum arquivo selecionado")
 
 
 class ListClients:
@@ -24,9 +88,11 @@ class ListClients:
         self.root.title("Gestão de Clientes")
 
         self.trash_icon = load_icon("resources/images/4021663.png")
+        self.drive_icon = load_icon("resources/images/drive_icon.png")
         self.edit_icon = load_icon("resources/images/edit_icon.png")  # Atualize o caminho para o ícone de edição
         self.trash_buttons = {}
         self.edit_buttons = {}
+        self.upload_buttons = {}
 
         # Variáveis de paginação
         self.page_size = 10
@@ -104,7 +170,7 @@ class ListClients:
         tree.column("Name", anchor="center")
         tree.column("Email", anchor="center")
         tree.column("Phone", anchor="center")
-        tree.column("Actions", anchor="center", width=150)
+        tree.column("Actions", anchor="center", width=200)
         tree.pack(padx=10, pady=10, fill=tk.BOTH, expand=True)
         return tree
 
@@ -116,12 +182,16 @@ class ListClients:
             self.tree.delete(item)
 
         # Limpar todos os botões antigos
-        for btn in self.trash_buttons.values():
-            btn.destroy()
         for btn in self.edit_buttons.values():
             btn.destroy()
-        self.trash_buttons.clear()
+        for btn in self.upload_buttons.values():
+            btn.destroy()
+        for btn in self.trash_buttons.values():
+            btn.destroy()
+
         self.edit_buttons.clear()
+        self.upload_buttons.clear()
+        self.trash_buttons.clear()
 
         session = SessionLocal()
         try:
@@ -142,7 +212,7 @@ class ListClients:
             # Atualizar o estado dos botões de paginação
             self.prev_button.config(state=tk.NORMAL if self.current_page > 1 else tk.DISABLED)
             self.next_button.config(state=tk.NORMAL if self.current_page < self.total_pages else tk.DISABLED)
-            self.page_label.config(text=f"Página {self.current_page} of {self.total_pages}")
+            self.page_label.config(text=f"Página {self.current_page} de {self.total_pages}")
 
         except Exception as e:
             messagebox.showerror("Error", f"Ocorreu um erro: {e}")
@@ -151,29 +221,30 @@ class ListClients:
 
     def add_action_buttons_to_tree(self):
         for item in self.tree.get_children():
-            self.add_trash_button(item)
-            self.add_edit_button(item)
+            self.add_action_buttons(item)
 
-    def add_trash_button(self, item_id):
-        try:
-            x, y, width, height = self.tree.bbox(item_id, column="#5")
-            if width > 0:
-                trash_btn = tk.Button(self.tree, image=self.trash_icon, command=lambda: self.delete_client(item_id),
-                                      bd=0)
-                trash_btn.place(x=x + (width - self.trash_icon.width()) // 2 - 20,  # Ajuste da posição do botão
-                                y=y + (height - self.trash_icon.height()) // 2)
-                self.trash_buttons[item_id] = trash_btn
-        except tk.TclError:
-            pass
-
-    def add_edit_button(self, item_id):
+    def add_action_buttons(self, item_id):
         try:
             x, y, width, height = self.tree.bbox(item_id, column="#5")
             if width > 0:
                 edit_btn = tk.Button(self.tree, image=self.edit_icon, command=lambda: self.edit_client(item_id), bd=0)
-                edit_btn.place(x=x + (width - self.edit_icon.width()) // 2 + 20,  # Ajuste da posição do botão
+                upload_btn = tk.Button(self.tree, image=self.drive_icon, command=lambda: select_and_upload_file(self.tree.item(item_id, 'values')[1]),
+                                       bd=0, foreground="white")
+                trash_btn = tk.Button(self.tree, image=self.trash_icon, command=lambda: self.delete_client(item_id),
+                                      bd=0)
+
+                button_width = self.trash_icon.width()
+                spacing = 20
+                edit_btn.place(x=x + (width - 3 * button_width - 2 * spacing) // 2,
                                y=y + (height - self.edit_icon.height()) // 2)
+                upload_btn.place(x=x + (width - button_width + -10) // 2,
+                                 y=y + (height - 24) // 2)
+                trash_btn.place(x=x + (width + button_width + spacing) // 2,
+                                y=y + (height - self.trash_icon.height()) // 2)
+
                 self.edit_buttons[item_id] = edit_btn
+                self.upload_buttons[item_id] = upload_btn
+                self.trash_buttons[item_id] = trash_btn
         except tk.TclError:
             pass
 
@@ -187,7 +258,8 @@ class ListClients:
                 self.edit_client(item_id)
 
     def delete_client(self, item_id):
-        confirm = messagebox.askyesno("Confirme que quer Deletar", "Tem certeza de que deseja excluir o cliente selecionado?")
+        confirm = messagebox.askyesno("Confirme que quer Deletar",
+                                      "Tem certeza de que deseja excluir o cliente selecionado?")
         if confirm:
             selected_client_id = self.tree.item(item_id, 'values')[0]
             session = SessionLocal()
@@ -199,12 +271,15 @@ class ListClients:
                     messagebox.showinfo("Success", "Cliente removido com sucesso")
 
                     self.tree.delete(item_id)
-                    if item_id in self.trash_buttons:
-                        self.trash_buttons[item_id].destroy()
-                        del self.trash_buttons[item_id]
                     if item_id in self.edit_buttons:
                         self.edit_buttons[item_id].destroy()
                         del self.edit_buttons[item_id]
+                    if item_id in self.upload_buttons:
+                        self.upload_buttons[item_id].destroy()
+                        del self.upload_buttons[item_id]
+                    if item_id in self.trash_buttons:
+                        self.trash_buttons[item_id].destroy()
+                        del self.trash_buttons[item_id]
                 else:
                     messagebox.showerror("Error", "Cliente não encontrado")
             except Exception as e:
